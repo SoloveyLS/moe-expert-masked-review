@@ -2,6 +2,10 @@
 
 Research question: when a mixture-of-experts model reviews a proposed code change, do independent passes constrained to different expert subsets find more distinct, valid correctness issues than the same number of full-pool passes?
 
+![Colored diagram of the expert masking review experiment](docs/expert-masking-preview.png)
+
+[Editable Excalidraw diagram](docs/expert-masking-experiment.excalidraw)
+
 ## Components
 
 - `vendor/strata` is a pinned Git submodule of the [Strata research branch](https://github.com/SoloveyLS/Strata/tree/2bd83ef6ca30cfaf9a19225c05fc86207cdaa4b8): opt-in routed-expert subsets and sparse expert loading, based on [upstream 87dfca0e](https://github.com/Niko1221/Strata/commit/87dfca0e7c3ee24ad36cc3f69a31b859587245f8). The upstream MIT notice remains in the fork.
