@@ -1,0 +1,4 @@
+[submodule "vendor/strata"]
+	path = vendor/strata
+	url = https://github.com/SoloveyLS/Strata.git
+	shallow = true

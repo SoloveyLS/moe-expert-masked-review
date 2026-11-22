@@ -1,0 +1,9 @@
+[project]
+name = "moe-expert-masked-review"
+version = "0.1.0"
+description = "Reproducible starter for MoE expert masking review research"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv]
+package = false

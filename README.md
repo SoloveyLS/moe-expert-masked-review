@@ -4,17 +4,31 @@ Research question: when a mixture-of-experts model reviews a proposed code chang
 
 ## Components
 
-- [Strata research branch](https://github.com/SoloveyLS/Strata/tree/2bd83ef6ca30cfaf9a19225c05fc86207cdaa4b8): opt-in routed-expert subsets and sparse expert loading, based on [upstream 87dfca0e](https://github.com/Niko1221/Strata/commit/87dfca0e7c3ee24ad36cc3f69a31b859587245f8). The upstream MIT notice remains in the fork.
+- `vendor/strata` is a pinned Git submodule of the [Strata research branch](https://github.com/SoloveyLS/Strata/tree/2bd83ef6ca30cfaf9a19225c05fc86207cdaa4b8): opt-in routed-expert subsets and sparse expert loading, based on [upstream 87dfca0e](https://github.com/Niko1221/Strata/commit/87dfca0e7c3ee24ad36cc3f69a31b859587245f8). The upstream MIT notice remains in the fork.
 - `download_benchmark.py`: downloads one fixed, public fmt source snapshot for an ordinary output-alignment benchmark fixture. It does not download patches, issue text, grading data or weights, and never extracts or runs the snapshot. It is a curated example, not the original multi-repository corpus.
 - `test_downloader.py`: offline downloader argument, command and validation tests.
 
+## Quick start
+
+Requirements: Git, uv and Python 3.10+ already installed. The CPU demo also needs a C++17 compiler with pthread support (set `CXX` if needed). No third-party Python packages are required.
+
 ```sh
-python3 download_benchmark.py --show
-python3 download_benchmark.py --out ./fmt-alignment-base.tar
-python3 -m unittest test_downloader
+git clone --recurse-submodules https://github.com/SoloveyLS/moe-expert-masked-review.git
+cd moe-expert-masked-review
+uv run --frozen --offline python demo.py
+uv run --frozen --offline python -m unittest -v
 ```
 
-The source stays under its upstream license. The script requires Git and Python 3.10+. It writes only to the chosen output path (which must not already exist); the local Git fetch occurs in a temporary directory. No models, build tools or services are installed by the downloader.
+If you already cloned without submodules, run `git submodule update --init --recursive` first. The demo checks the committed Git submodule pin, rejects a modified submodule checkout, prints fixture provenance, and compiles and runs the fork's CPU expert-mapping regression in a temporary directory. It does not download the fixture, start Strata inference, or run model reviews.
+
+To separately inspect or download the pinned example source:
+
+```sh
+uv run --frozen --offline python download_benchmark.py --show
+uv run --frozen --offline python download_benchmark.py --out ./fmt-alignment-base.tar
+```
+
+The `--offline` flag prevents uv dependency network access; the explicit download command still uses Git to fetch only the fixed public fmt commit. The source stays under its upstream license. The downloader writes only to the selected path (which must not already exist), using a temporary directory for Git. It does not extract, build or execute the snapshot.
 
 ## Compare matched arms
 
@@ -24,4 +38,4 @@ Have a human adjudicate correctness findings against the specification and known
 
 ## Validation and limitations
 
-The fork's standalone CPU fixture checks identity mode, strict expert mapping, sparse reads, padding, short reads, concurrent reads and duplicate rejection. No end-to-end model run, GPU build or benchmark quality comparison is claimed for this release. The research branch is not an upstream-supported Strata feature. This repository contains methodology and a minimal public snapshot downloader; it is not a batch reviewer or an automated vulnerability workflow.
+The fork's standalone CPU fixture checks identity mode, strict expert mapping, sparse reads, padding, short reads, concurrent reads and duplicate rejection. No end-to-end model run, GPU build or benchmark quality comparison is claimed for this release. The research branch is not an upstream-supported Strata feature. This repository contains methodology, a CPU regression demo and a minimal public snapshot downloader; it is not a batch reviewer or an automated vulnerability workflow.
