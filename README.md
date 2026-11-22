@@ -1,6 +1,10 @@
 # MoE expert masking for code review
 
-Research question: when a mixture-of-experts model reviews a proposed code change, do independent passes constrained to different expert subsets find more distinct, valid correctness issues than the same number of full-pool passes?
+LLM judges [can give higher scores to answers that look more familiar to them](https://arxiv.org/abs/2410.21819). That’s one reason I’d rather have a different model family review a patch. But what if I only have one model to work with? Could I nudge its output distribution without hurting its reasoning?
+
+MoE models give us something to try. [Cerebras’s REAP](https://www.cerebras.ai/blog/reap) shows that pruning carefully chosen experts can preserve much of a model’s performance. So maybe I can mask out a different set of experts on each review pass and get the same model to notice different bugs. That’s the idea, anyway. REAP doesn’t tell us whether random masks will help a reviewer or just make it worse.
+
+Here’s a little experiment to find out.
 
 ![Colored diagram of the expert masking review experiment](docs/expert-masking-preview.png)
 
@@ -8,13 +12,13 @@ Research question: when a mixture-of-experts model reviews a proposed code chang
 
 ## Components
 
-- `vendor/strata` is a pinned Git submodule of the [Strata research branch](https://github.com/SoloveyLS/Strata/tree/2bd83ef6ca30cfaf9a19225c05fc86207cdaa4b8): opt-in routed-expert subsets and sparse expert loading, based on [upstream 87dfca0e](https://github.com/Niko1221/Strata/commit/87dfca0e7c3ee24ad36cc3f69a31b859587245f8). The upstream MIT notice remains in the fork.
-- `download_benchmark.py`: downloads one fixed, public fmt source snapshot for an ordinary output-alignment benchmark fixture. It does not download patches, issue text, grading data or weights, and never extracts or runs the snapshot. It is a curated example, not the original multi-repository corpus.
-- `test_downloader.py`: offline downloader argument, command and validation tests.
+- `vendor/strata`: a pinned submodule of my [Strata research branch](https://github.com/SoloveyLS/Strata/tree/2bd83ef6ca30cfaf9a19225c05fc86207cdaa4b8). It adds opt-in expert masks and sparse expert loading to [upstream 87dfca0e](https://github.com/Niko1221/Strata/commit/87dfca0e7c3ee24ad36cc3f69a31b859587245f8). The fork keeps the upstream MIT notice.
+- `download_benchmark.py`: fetches one pinned public fmt source snapshot for an ordinary output-alignment case. I’ve included this one example, not the original multi-repo corpus. The download contains no task patches, issue text, grading data or model weights.
+- `test_downloader.py`: checks arguments, Git commands and validation without touching the network.
 
 ## Quick start
 
-Requirements: Git, uv and Python 3.10+ already installed. The CPU demo also needs a C++17 compiler with pthread support (set `CXX` if needed). No third-party Python packages are required.
+You’ll need Git, uv and Python 3.10+. The CPU demo also needs a C++17 compiler with pthread support. Set `CXX` if you need to pick a compiler. There are no third-party Python dependencies.
 
 ```sh
 git clone --recurse-submodules https://github.com/SoloveyLS/moe-expert-masked-review.git
@@ -23,23 +27,30 @@ uv run --frozen --offline python demo.py
 uv run --frozen --offline python -m unittest -v
 ```
 
-If you already cloned without submodules, run `git submodule update --init --recursive` first. The demo checks the committed Git submodule pin, rejects a modified submodule checkout, prints fixture provenance, and compiles and runs the fork's CPU expert-mapping regression in a temporary directory. It does not download the fixture, start Strata inference, or run model reviews.
+Cloned without submodules? Run `git submodule update --init --recursive` first. The demo checks that Strata is at the pinned commit with no local changes, prints the fixture’s source and revision, and runs the CPU expert-mapping test in a temporary directory. It doesn’t download the fixture, start Strata inference or ask a model to review anything.
 
-To separately inspect or download the pinned example source:
+To see where the example came from or download its source:
 
 ```sh
 uv run --frozen --offline python download_benchmark.py --show
 uv run --frozen --offline python download_benchmark.py --out ./fmt-alignment-base.tar
 ```
 
-The `--offline` flag prevents uv dependency network access; the explicit download command still uses Git to fetch only the fixed public fmt commit. The source stays under its upstream license. The downloader writes only to the selected path (which must not already exist), using a temporary directory for Git. It does not extract, build or execute the snapshot.
+`--offline` keeps uv from fetching dependencies. The download command still uses Git to fetch the fixed fmt commit into a temporary directory. It writes the tar at the path you choose, refuses to overwrite it, and doesn’t extract, build or run anything. The source keeps its upstream license.
 
-## Compare matched arms
+## What I’d compare
 
-Use user-owned code changes or reviewed benign fixtures, starting with an alignment/formatting behavior check. Freeze the proposed change before review, keep answer keys separate, and run the reviewers independently with identical prompts and comparable token budgets, sampling and review counts. Compare a full expert pool against one or more predeclared subset arms. Repeated full-pool reviews are the primary control; a single full-pool pass alone would not separate diversity from additional sampling.
+Why not compare several masked passes to a single unmasked one? Extra attempts alone might find more bugs. I’d give both groups the same number of independent passes.
 
-Have a human adjudicate correctness findings against the specification and known behavior. Merge duplicate findings by root cause. Report unique valid findings, missed defects and false positives per arm, and record completion status, wall time and throughput independently. Keep author/grader inputs and raw review traces private; do not treat timeouts or absent outputs as clean reviews. Subset size is the eligible expert pool and does not itself reduce the number of routed experts per token.
+- Start with a patch in code you own or a vetted example of an ordinary correctness bug, like output alignment. Freeze the patch and keep the answer key separate.
+- Give both groups the same patch, spec, prompt, token budget and sampling settings. Let the control use the full expert pool on every pass. Pick the masks ahead of time and keep each mask fixed for its entire pass.
+- Check findings by hand against the spec and observed behavior. Count bugs by root cause so the same finding doesn’t count twice. Report distinct correct findings, misses and false positives for each group.
+- Record completion, wall time and throughput separately. A timeout or missing result doesn’t count as a clean review. Keep author and grader inputs and raw review traces private.
 
-## Validation and limitations
+Masking narrows the pool the router can pick from. It doesn’t, by itself, lower the number of experts routed per token.
 
-The fork's standalone CPU fixture checks identity mode, strict expert mapping, sparse reads, padding, short reads, concurrent reads and duplicate rejection. No end-to-end model run, GPU build or benchmark quality comparison is claimed for this release. The research branch is not an upstream-supported Strata feature. This repository contains methodology, a CPU regression demo and a minimal public snapshot downloader; it is not a batch reviewer or an automated vulnerability workflow.
+## What’s tested so far
+
+The CPU test checks identity mode, expert mapping, sparse reads, padding, short reads, concurrent reads and duplicate rejection. I haven’t validated the GPU build or run an end-to-end model review for this release, so there’s no result yet on whether masking improves reviews.
+
+The Strata changes are experimental and aren’t supported upstream. This repo gives you the experiment design, a CPU demo and the example downloader. It doesn’t include a batch reviewer or an automated vulnerability workflow.
